@@ -1,0 +1,1280 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SoundWave 3D Explorer — 소리의 발생과 전달</title>
+<style>
+  :root{
+    --bg:#080b14;
+    --panel:#111726;
+    --panel2:#182034;
+    --line:#28324a;
+    --text:#e6ecf7;
+    --dim:#8d9bb5;
+    --accent:#5fd0ff;
+    --warm:#ffb84d;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Segoe UI",system-ui,sans-serif;}
+  #app{display:flex;height:100%;width:100%;}
+
+  /* ---------- 3D + 그래프 영역 ---------- */
+  #stage{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}
+  #glwrap{position:relative;flex:1 1 auto;min-height:0;}
+  #gl{display:block;width:100%;height:100%;touch-action:none;cursor:grab;}
+  #gl:active{cursor:grabbing;}
+
+  #graphwrap{flex:0 0 auto;height:0;display:none;border-top:1px solid var(--line);
+             background:#0a0e18;position:relative;}
+  #graphwrap.on{display:block;height:172px;}
+  #graph{display:block;width:100%;height:100%;}
+
+  #hud{position:absolute;top:12px;left:14px;pointer-events:none;
+       background:rgba(8,11,20,.62);backdrop-filter:blur(6px);
+       border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:218px;}
+  #hud .row{display:flex;justify-content:space-between;gap:16px;font-size:12.5px;line-height:1.9;}
+  #hud .row b{font-variant-numeric:tabular-nums;font-weight:700;color:#fff;}
+  #hud .big{font-size:20px;font-weight:800;color:var(--accent);letter-spacing:-.3px;}
+  #hud .sep{height:1px;background:var(--line);margin:7px 0;}
+  #hud .k{color:var(--dim);}
+
+  #badge{position:absolute;top:12px;left:50%;transform:translateX(-50%);pointer-events:none;
+       background:rgba(255,184,77,.13);border:1px solid rgba(255,184,77,.5);color:#ffd291;
+       border-radius:10px;padding:7px 13px;font-size:11.5px;line-height:1.6;max-width:330px;
+       text-align:center;display:none;}
+  #badge.on{display:block;}
+
+  #legend{position:absolute;left:14px;bottom:14px;pointer-events:none;
+       background:rgba(8,11,20,.62);backdrop-filter:blur(6px);
+       border:1px solid var(--line);border-radius:12px;padding:9px 13px;font-size:11.5px;color:var(--dim);}
+  #legend .bar{width:150px;height:9px;border-radius:5px;margin:6px 0 4px;
+       background:linear-gradient(90deg,#2d558f,#8ca8cf,#ffb84d);}
+  #legend .lb{display:flex;justify-content:space-between;width:150px;}
+
+  #tip{position:absolute;right:14px;bottom:14px;pointer-events:none;font-size:11.5px;color:#5f6d87;}
+
+  /* ---------- 조작 패널 ---------- */
+  #panel{flex:0 0 322px;background:var(--panel);border-left:1px solid var(--line);
+         overflow-y:auto;padding:16px 16px 30px;}
+  #panel h1{font-size:15px;margin:0 0 2px;letter-spacing:-.3px;}
+  #panel h1 span{color:var(--accent);}
+  #panel .sub{font-size:11.5px;color:var(--dim);margin-bottom:14px;}
+
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:11px;}
+  .card > .t{font-size:11px;font-weight:700;color:var(--dim);letter-spacing:.6px;margin-bottom:9px;}
+
+  .seg{display:flex;gap:6px;}
+  .seg button{flex:1;padding:9px 0;border-radius:9px;border:1px solid var(--line);
+      background:#0e1422;color:var(--dim);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .seg button.on{background:var(--accent);border-color:var(--accent);color:#04121c;}
+
+  .btns{display:flex;gap:6px;margin-top:8px;}
+  .btns button{flex:1;padding:9px 0;border-radius:9px;border:1px solid var(--line);
+      background:#0e1422;color:var(--text);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btns button:hover{border-color:var(--accent);color:var(--accent);}
+  .btns button.primary{background:var(--warm);border-color:var(--warm);color:#2a1a00;}
+  .btns button.primary:hover{color:#2a1a00;}
+  .btns button.far{background:#0e1422;border-color:var(--warm);color:var(--warm);}
+  .btns button.far.on{background:var(--warm);color:#2a1a00;}
+
+  .ctl{margin-bottom:13px;}
+  .ctl:last-child{margin-bottom:2px;}
+  .ctl .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:6px;}
+  .ctl .lab .v{font-variant-numeric:tabular-nums;font-weight:700;color:var(--accent);font-size:12.5px;}
+  .ctl .hint{font-size:10.5px;color:#6d7c96;margin-top:4px;}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+      background:#2b3752;outline:none;margin:0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+      background:var(--accent);border:3px solid #0d1322;cursor:pointer;box-shadow:0 0 0 1px var(--accent);}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);
+      border:3px solid #0d1322;cursor:pointer;}
+
+  .chk{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0;cursor:pointer;color:#c8d3e6;}
+  .chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
+
+  .note{font-size:11px;line-height:1.75;color:#7c8aa4;background:#0e1422;border:1px solid var(--line);
+        border-radius:10px;padding:10px 12px;}
+  .note b{color:var(--accent);font-weight:700;}
+
+  /* ---------- 학교급 전환 ---------- */
+  body.elem .high-only{display:none !important;}
+  body.high .elem-only{display:none !important;}
+
+  .lvl{margin-bottom:11px;}
+  .ends{display:flex;justify-content:space-between;font-size:10.5px;color:#6d7c96;margin-top:5px;}
+
+  /* 초등 모드는 조작부를 크게 */
+  body.elem #panel .btns button{padding:13px 0;font-size:14px;}
+  body.elem #panel .ctl .lab{font-size:14px;}
+  body.elem #panel .ctl .lab .v{font-size:13.5px;}
+  body.elem #panel .chk{font-size:13.5px;}
+  body.elem #panel input[type=range]{height:6px;}
+  body.elem #panel input[type=range]::-webkit-slider-thumb{width:22px;height:22px;}
+  body.elem .note{font-size:12px;line-height:1.85;}
+
+  /* ---------- 최초 진입: 학교급 선택 ---------- */
+  #levelPick{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+       background:rgba(6,9,16,.88);backdrop-filter:blur(4px);padding:20px;}
+  #levelPick.done{display:none;}
+  .lp-box{background:var(--panel);border:1px solid var(--line);border-radius:18px;
+       padding:30px 28px;max-width:460px;width:100%;text-align:center;}
+  .lp-title{font-size:20px;font-weight:800;letter-spacing:-.4px;margin-bottom:6px;}
+  .lp-title span{color:var(--accent);}
+  .lp-sub{font-size:13px;color:var(--dim);margin-bottom:22px;}
+  .lp-btns{display:flex;flex-direction:column;gap:10px;}
+  .lp-btns button{display:flex;flex-direction:column;gap:4px;align-items:center;
+       padding:17px 14px;border-radius:13px;border:1px solid var(--line);background:#0e1422;
+       color:var(--text);cursor:pointer;font-family:inherit;}
+  .lp-btns button:hover{border-color:var(--accent);background:#132038;}
+  .lp-btns button b{font-size:16px;font-weight:700;}
+  .lp-btns button span{font-size:11.5px;color:var(--dim);font-weight:400;}
+  .lp-foot{margin-top:18px;font-size:11px;color:#5f6d87;}
+
+  /* ---------- 모바일 ---------- */
+  @media (max-width: 880px){
+    #app{flex-direction:column;}
+    #stage{flex:1 1 auto;min-height:52vh;}
+    #graphwrap.on{height:124px;}
+    #panel{flex:0 0 auto;max-height:48vh;border-left:none;border-top:1px solid var(--line);}
+    #hud{top:8px;left:8px;padding:8px 11px;min-width:0;}
+    #hud .row{font-size:11px;line-height:1.7;gap:10px;}
+    #hud .big{font-size:16px;}
+    #legend,#tip{display:none;}
+    #badge{font-size:10.5px;max-width:78%;padding:6px 10px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="glwrap">
+      <canvas id="gl"></canvas>
+
+      <div id="hud">
+        <div class="row"><span class="k">소리의 속력</span><span class="big" id="hV">343.5 m/s</span></div>
+        <div class="sep"></div>
+        <div class="row high-only"><span class="k">파장 λ</span><b id="hLam">0.781 m</b></div>
+        <div class="row high-only"><span class="k">진동수 f</span><b id="hF">440 Hz</b></div>
+        <div class="row high-only"><span class="k">상자 안 파장</span><b id="hCyc">3.8 개</b></div>
+        <div class="sep"></div>
+        <div class="row"><span class="k"><span class="high-only">파면 위치</span><span class="elem-only">소리가 간 거리</span></span><b id="hFront">0.00 / 3.0 m</b></div>
+        <div class="row"><span class="k"><span class="high-only">경과 시간</span><span class="elem-only">지난 시간</span></span><b id="hT">0.00000 초</b></div>
+        <div class="row high-only"><span class="k">도달 예상</span><b id="hArr">0.00873 초</b></div>
+      </div>
+
+      <div id="badge"></div>
+
+      <div id="legend">
+        <span class="high-only">공기의 밀도</span><span class="elem-only">공기 알갱이</span>
+        <div class="bar"></div>
+        <div class="lb high-only"><span>희박(소)</span><span>보통</span><span>조밀(밀)</span></div>
+        <div class="lb elem-only"><span>듬성듬성</span><span>보통</span><span>촘촘</span></div>
+      </div>
+      <div id="tip"><span class="high-only">드래그 = 회전 · 휠/핀치 = 확대 · Space 재생 · R 리셋 · P 펄스</span><span class="elem-only">화면을 드래그하면 돌려볼 수 있어요</span></div>
+    </div>
+
+    <div id="graphwrap"><canvas id="graph"></canvas></div>
+  </div>
+
+  <aside id="panel">
+    <h1>SoundWave <span>3D</span> Explorer</h1>
+    <div class="sub"><span class="high-only">공기 입자의 진동으로 보는 소리의 발생과 전달</span><span class="elem-only">공기 알갱이로 보는 소리</span></div>
+
+    <div class="seg lvl">
+      <button id="lvE">🧒 초등</button>
+      <button id="lvH">🎓 중·고등</button>
+    </div>
+
+    <!-- ================= 초등 모드 ================= -->
+    <div id="panelElem" class="elem-only">
+      <div class="card">
+        <div class="t">소리 내기</div>
+        <div class="btns">
+          <button id="eSound" class="primary">🔊 소리 내기</button>
+          <button id="eStop">⏸ 멈추기</button>
+        </div>
+        <div class="btns">
+          <button id="eClap" class="primary">👏 박수 치기</button>
+          <button id="eReset">↺ 처음부터</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="t">바꿔 보기</div>
+
+        <div class="ctl">
+          <div class="lab"><span>🔈 소리의 크기</span><span class="v" id="eVolV">보통</span></div>
+          <input type="range" id="eVol" min="0" max="4" step="1" value="2">
+          <div class="ends"><span>작게</span><span>크게</span></div>
+        </div>
+
+        <div class="ctl">
+          <div class="lab"><span>🎵 소리의 높낮이</span><span class="v" id="ePitchV">보통</span></div>
+          <input type="range" id="ePitch" min="0" max="4" step="1" value="2">
+          <div class="ends"><span>낮은 소리</span><span>높은 소리</span></div>
+        </div>
+
+        <div class="ctl">
+          <div class="lab"><span>🐢 느리게 보기</span><span class="v" id="eTimeV">느리게</span></div>
+          <input type="range" id="eTime" min="0" max="4" step="1" value="1">
+          <div class="ends"><span>아주 느리게</span><span>실제 속도</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="t">보는 방법</div>
+        <label class="chk"><input type="checkbox" id="eRest"> 노란 알갱이의 <b>원래 자리</b> 보기</label>
+        <div class="btns">
+          <button id="eFrontView">앞에서 보기</button>
+          <button id="eIsoView">비스듬히 보기</button>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>이렇게 살펴보세요</b><br>
+        ① <b>노란 알갱이</b>를 보세요. 멀리 날아가지 않고 <b>제자리에서 앞뒤로만</b> 왔다 갔다 해요.<br>
+        ② 알갱이가 <b>촘촘한 곳</b>과 <b>듬성듬성한 곳</b>이 번갈아 지나가요. 이렇게 소리가 전달돼요.<br>
+        ③ 소리를 <b>크게</b> 하면 알갱이가 더 많이 움직이고, <b>높게</b> 하면 더 촘촘해져요.<br>
+        ④ <b>실제 속도</b>로 하면 너무 빨라서 안 보여요. 진짜 소리가 그래요!
+      </div>
+    </div>
+
+    <!-- ================= 중·고등 모드 ================= -->
+    <div id="panelHigh" class="high-only">
+    <div class="card">
+      <div class="t">음원 모드</div>
+      <div class="seg">
+        <button id="mCont" class="on">🔊 연속 파동</button>
+        <button id="mPulse">👏 단일 펄스</button>
+      </div>
+      <div class="btns">
+        <button id="bPlay" class="primary">⏸ 일시정지</button>
+        <button id="bReset">↺ 리셋</button>
+      </div>
+      <div class="btns" id="pulseRow" style="display:none">
+        <button id="bFire" class="primary">👏 박수 치기 (펄스 발사)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="t">변인 조작</div>
+
+      <div class="ctl">
+        <div class="lab"><span>📏 거리</span><span class="v" id="vDist">3.0 m</span></div>
+        <input type="range" id="sDist" min="3" max="10" step="0.5" value="3">
+        <div class="hint">교실 범위(3~10 m). 상자의 화면 크기는 그대로이고 눈금이 바뀝니다</div>
+        <div class="btns"><button id="bFar" class="far">🏃 1초 거리 (340 m)</button></div>
+      </div>
+
+      <div class="ctl">
+        <div class="lab"><span>🌡️ 온도</span><span class="v" id="vTemp">20 °C</span></div>
+        <input type="range" id="sTemp" min="-20" max="40" step="1" value="20">
+        <div class="hint">v = 331.5 + 0.6 × T &nbsp;→&nbsp; <span id="hintV">343.5 m/s</span></div>
+      </div>
+
+      <div class="ctl">
+        <div class="lab"><span>⏱️ 시간 배율</span><span class="v" id="vScale">0.005×</span></div>
+        <input type="range" id="sScale" min="0" max="100" step="0.5" value="23.3">
+        <div class="hint">낮출수록 슬로우 모션 (0.001× ~ 1.0×)</div>
+      </div>
+
+      <div class="ctl">
+        <div class="lab"><span>🎵 소리의 높낮이</span><span class="v" id="vPitch">440 Hz</span></div>
+        <input type="range" id="sPitch" min="0" max="100" step="0.5" value="49.5">
+        <div class="hint">진동수가 커지면 파장이 짧아집니다</div>
+      </div>
+
+      <div class="ctl">
+        <div class="lab"><span>🔈 소리의 크기</span><span class="v" id="vVol">60 %</span></div>
+        <input type="range" id="sVol" min="0" max="100" step="1" value="60">
+        <div class="hint">진폭 = 입자가 앞뒤로 움직이는 거리</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="t">표시 옵션</div>
+      <label class="chk"><input type="checkbox" id="oGraph"> 📈 그래프 보기 (정면 시점으로 전환)</label>
+      <label class="chk"><input type="checkbox" id="oDens" checked> 밀도(소밀) 색상 표시</label>
+      <label class="chk"><input type="checkbox" id="oTrack" checked> 추적 입자(노랑) 표시</label>
+      <label class="chk"><input type="checkbox" id="oRest"> 추적 입자의 <b>제자리</b>만 보기</label>
+      <label class="chk"><input type="checkbox" id="oFront" checked> 파면(파란 사각형) 표시</label>
+      <label class="chk"><input type="checkbox" id="oJit" checked> 열운동(온도에 따른 떨림)</label>
+      <div class="btns">
+        <button id="vFront">정면 시점</button>
+        <button id="vSide">측면 시점</button>
+        <button id="vIso">비스듬히</button>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>관찰 포인트</b><br>
+      ① 시간 배율을 <b>0.001×</b>로 낮추면, 입자는 멀리 날아가지 않고 <b>제자리에서 앞뒤로</b>만 진동하며 옆 입자를 밀어냅니다.<br>
+      ② 그래프를 켜면 변위 곡선의 <b>마루는 밀한 곳이 아닙니다.</b> 빽빽한 곳(밀)은 곡선이 <b>0을 지나며 내려가는 지점</b>입니다.<br>
+      ③ 온도를 0 °C → 30 °C로 올리면 도달 시간이 <b>짧아집니다</b>.<br>
+      ④ <b>1초 거리</b> 버튼을 누르고 시간 배율 1.0×로 재생하면, 소리가 340 m를 가는 데 <b>실제로 1초</b>가 걸립니다.
+    </div>
+    </div><!-- /panelHigh -->
+  </aside>
+</div>
+
+<div id="levelPick">
+  <div class="lp-box">
+    <div class="lp-title">소리의 발생과 전달 <span>3D</span></div>
+    <div class="lp-sub">누가 사용하나요?</div>
+    <div class="lp-btns">
+      <button id="lpElem"><b>🧒 초등학생</b><span>꼭 필요한 것만 · 크고 간단한 조작</span></button>
+      <button id="lpHigh"><b>🎓 중 · 고등학생</b><span>온도 · 거리 · 그래프까지 전부</span></button>
+    </div>
+    <div class="lp-foot">고른 뒤에도 왼쪽 위 버튼으로 언제든 바꿀 수 있어요</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   SoundWave 3D Explorer — 의존성 없는 순수 WebGL 종파 시뮬레이터
+
+   [물리]  v = 331.5 + 0.6T          소리의 속력 (m/s)
+           k = 2πf/v                 파수
+           s(x,t) = A·sin(kx − ωt)   변위 (연속 파동)
+           ρ/ρ₀ = 1/(1 + ∂s/∂x)      밀도 (∂s/∂x < 0 이면 압축)
+   ========================================================================= */
+
+/* =========================================================================
+   PHYSICS — 파동 공식 단일 원본
+   아래 WAVE_GLSL(셰이더용)과 waveJS(자바스크립트용)는 반드시 같은 식이어야 한다.
+   시작할 때 selfCheckWave()가 두 구현을 실제로 비교해서 어긋나면 경고를 낸다.
+   ========================================================================= */
+
+// 화면상 상자 크기(렌더 단위). 물리 거리 L이 바뀌어도 이 값은 고정된다.
+const VIS_LEN = 3.0, VIS_H = 0.9, VIS_D = 0.9;
+
+const DIST_MIN = 3, DIST_MAX = 10, DIST_FAR = 340;   // 물리 거리(m)
+const ENV_LEN  = 0.10;   // 파면 경계를 부드럽게 만드는 길이(m). 시각 처리일 뿐 물리 아님
+const GRAD_REF = 0.90;   // 밀도 색상 정규화 기준 = |∂s/∂x|의 설계상 최댓값
+
+// 파동 공식이 쓰는 uniform 선언 (셰이더 2개가 공유)
+const WAVE_UNIFORMS = `
+uniform float uA;       // 진폭 (m)
+uniform float uK;       // 파수 (rad/m)
+uniform float uSigma;   // 펄스 폭 (m)
+uniform float uFront;   // 파면 위치 (m) = v·t
+uniform float uPhase;   // ω·t 를 2π로 나눈 나머지 (float32 정밀도 보호)
+uniform float uMode;    // 0 = 연속 파동, 1 = 단일 펄스
+uniform float uActive;  // 펄스 발사 여부
+uniform float uEnvLen;  // 파면 경계 완화 길이 (m)
+`;
+
+// 파동 공식 (GLSL) — 원본
+const WAVE_GLSL = `
+void wave(in float x, out float s, out float g){
+  s = 0.0; g = 0.0;
+  if(uMode < 0.5){
+    // 연속 파동: 파면이 지나간 곳만 진동한다.
+    // 부호가 음수인 이유 — 음원이 처음에 공기를 '미는' 것으로 시작하게 하기 위함이다.
+    // 그래야 파면 바로 뒤가 압축(밀)이 되어 박수(펄스)와 앞뒤 순서가 같아진다.
+    if(x <= uFront){
+      float ph  = uK * x - uPhase;
+      float env = clamp((uFront - x) / uEnvLen, 0.0, 1.0);
+      s = -uA * sin(ph) * env;
+      g = -uA * uK * cos(ph) * env;
+    }
+  } else {
+    // 단일 펄스: 가우시안 압축 덩어리가 이동한다
+    float q = x - uFront;
+    float e = exp(-(q*q) / (2.0 * uSigma * uSigma));
+    s =  uA * e * uActive;
+    g = -uA * (q / (uSigma*uSigma)) * e * uActive;
+  }
+}`;
+
+// 파동 공식 (JavaScript) — 위 GLSL과 같은 식. 그래프와 진동판이 사용한다.
+function waveJS(x, P){
+  let s = 0, g = 0;
+  if(P.mode < 0.5){
+    if(x <= P.front){
+      const ph  = P.k * x - P.phase;
+      const env = Math.min(Math.max((P.front - x) / P.envLen, 0), 1);
+      s = -P.A * Math.sin(ph) * env;   // 부호 이유는 WAVE_GLSL 주석 참고
+      g = -P.A * P.k * Math.cos(ph) * env;
+    }
+  } else {
+    const q = x - P.front;
+    const e = Math.exp(-(q*q) / (2 * P.sigma * P.sigma));
+    s =  P.A * e * P.active;
+    g = -P.A * (q / (P.sigma*P.sigma)) * e * P.active;
+  }
+  return {s, g};
+}
+
+// 현재 상태로부터 파동 매개변수를 만든다 (셰이더 uniform과 waveJS가 같은 값을 쓴다)
+function waveParams(){
+  const v = speed();
+  const k = 2 * Math.PI * S.freq / v;
+  return {
+    v, k,
+    A:      amplitude(),
+    sigma:  sigma(),
+    front:  v * S.simTime,
+    // ω·t를 2π로 접어서 넘긴다. 1.0× 배율로 오래 돌려도 float32 위상이 뭉개지지 않는다.
+    phase:  (2 * Math.PI * S.freq * S.simTime) % (2 * Math.PI),
+    mode:   S.mode,
+    active: S.pulseActive,
+    envLen: ENV_LEN
+  };
+}
+
+function speed(){ return 331.5 + 0.6 * S.temp; }
+function lambda(){ return speed() / S.freq; }
+function sigma(){ return Math.max(0.03, Math.min(0.30, lambda() * 0.25)); }
+function amplitude(){
+  // |∂s/∂x| < 1 을 넘기면 입자가 서로를 통과해 버린다. 설계상 0.90에서 묶는다.
+  if(S.mode === 0){
+    const k = 2 * Math.PI * S.freq / speed();
+    return S.vol * Math.min(GRAD_REF / k, 0.24);
+  }
+  return S.vol * 1.4 * sigma();
+}
+
+// ---------- WebGL 초기화 ----------
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl', {antialias:true, alpha:false, depth:true});
+if(!gl){ document.body.innerHTML = '<div style="padding:40px;font-size:15px">이 브라우저는 WebGL을 지원하지 않습니다.</div>'; throw new Error('no webgl'); }
+
+function compile(type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src);
+  return s;
+}
+function program(vs, fs){
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+function uniforms(p, names){
+  const o = {}; names.forEach(n => o[n] = gl.getUniformLocation(p, n)); return o;
+}
+
+// ---------- 입자 셰이더 (WAVE_GLSL 주입) ----------
+const PART_VS = `
+precision highp float;
+attribute vec3  aRest;   // x: 0~1 정규화 좌표, y/z: 렌더 단위
+attribute vec2  aRand;
+attribute float aTag;
+
+uniform mat4  uVP;
+uniform float uL;         // 물리 거리 (m)
+uniform float uVisLen;    // 화면상 상자 길이 (렌더 단위)
+uniform float uJitter;
+uniform float uJitTime;   // 열운동 전용 시간. uPhase는 2π로 접히므로 쓸 수 없다
+uniform float uWRef;      // 직교 투영일 때의 기준 깊이 (0이면 원근)
+uniform float uPointScale;
+uniform float uDensity;
+uniform float uRestOnly;
+uniform float uShowTag;
+uniform float uGradRef;
+${WAVE_UNIFORMS}
+${WAVE_GLSL}
+
+varying vec3  vColor;
+varying float vCore;
+
+void main(){
+  if(uRestOnly > 0.5 && aTag < 0.5){
+    gl_Position = vec4(0.0, 0.0, -2.0, 1.0); gl_PointSize = 0.0; return;
+  }
+
+  float xPhys = aRest.x * uL;
+  float s, g;
+  wave(xPhys, s, g);
+  if(uRestOnly > 0.5){ s = 0.0; g = 0.0; }
+
+  // 물리 좌표 → 화면 좌표. 거리가 바뀌어도 상자의 화면 크기는 그대로다.
+  vec3 p = vec3((aRest.x + s / uL) * uVisLen, aRest.y, aRest.z);
+
+  // 열운동(브라운 운동). 화면 단위의 장식이며 물리 계산이 아니다.
+  float jt = uJitTime;
+  p += uJitter * vec3(
+        sin(jt + aRand.x * 6.2831),
+        sin(jt * 0.87 + aRand.y * 6.2831),
+        sin(jt * 1.13 + aRand.x * 3.1 + aRand.y * 2.7));
+
+  gl_Position = uVP * vec4(p, 1.0);
+
+  float cn = clamp(-g / uGradRef, -1.0, 1.0) * uDensity;
+  vec3  mid  = vec3(0.55, 0.67, 0.85);
+  vec3  comp = vec3(1.00, 0.72, 0.28);
+  vec3  rar  = vec3(0.16, 0.28, 0.52);
+  vec3  col  = mix(mid, comp, max(cn, 0.0));
+  col        = mix(col, rar,  max(-cn, 0.0));
+
+  float tag = aTag * uShowTag;
+  col = mix(col, vec3(1.0, 0.92, 0.25), tag);
+  if(uRestOnly > 0.5) col = vec3(0.85, 0.75, 0.30);
+
+  vColor = col;
+  vCore  = max(cn, 0.0);
+
+  // 직교 투영은 w가 항상 1이라 원근과 같은 기준 깊이(uWRef)로 크기를 맞춘다
+  float wEff = uWRef > 0.0 ? uWRef : gl_Position.w;
+  float sz = uPointScale * (1.0 + 0.45 * max(cn, 0.0)) * (1.0 + 1.5 * tag);
+  gl_PointSize = clamp(sz / wEff, 1.0, 26.0);
+}`;
+
+const PART_FS = `
+precision mediump float;
+varying vec3  vColor;
+varying float vCore;
+void main(){
+  vec2 c = gl_PointCoord - vec2(0.5);
+  float r = length(c);
+  if(r > 0.5) discard;
+  float sh = smoothstep(0.5, 0.10, r);
+  gl_FragColor = vec4(vColor * (0.50 + 0.75 * sh) * (1.0 + 0.25 * vCore), 1.0);
+}`;
+
+const LINE_VS = `precision highp float;
+attribute vec3 aPos; uniform mat4 uVP;
+void main(){ gl_Position = uVP * vec4(aPos, 1.0); }`;
+const LINE_FS = `precision mediump float;
+uniform vec4 uColor; void main(){ gl_FragColor = uColor; }`;
+
+const pProg = program(PART_VS, PART_FS);
+const lProg = program(LINE_VS,  LINE_FS);
+
+const PU = uniforms(pProg, ['uVP','uL','uVisLen','uJitter','uJitTime','uWRef','uPointScale',
+  'uDensity','uRestOnly','uShowTag','uGradRef',
+  'uA','uK','uSigma','uFront','uPhase','uMode','uActive','uEnvLen']);
+const PA = {
+  aRest: gl.getAttribLocation(pProg,'aRest'),
+  aRand: gl.getAttribLocation(pProg,'aRand'),
+  aTag : gl.getAttribLocation(pProg,'aTag')
+};
+const LU = uniforms(lProg, ['uVP','uColor']);
+const LA = { aPos: gl.getAttribLocation(lProg,'aPos') };
+
+// 파동 uniform을 프로그램에 밀어 넣는다 (입자 셰이더와 검증 셰이더가 공유)
+function setWaveUniforms(U, P){
+  gl.uniform1f(U.uA, P.A);
+  gl.uniform1f(U.uK, P.k);
+  gl.uniform1f(U.uSigma, P.sigma);
+  gl.uniform1f(U.uFront, P.front);
+  gl.uniform1f(U.uPhase, P.phase);
+  gl.uniform1f(U.uMode, P.mode);
+  gl.uniform1f(U.uActive, P.active);
+  gl.uniform1f(U.uEnvLen, P.envLen);
+}
+
+/* =========================================================================
+   셰이더 ↔ JS 공식 일치 검증 (시작 시 1회, 런타임 비용 없음)
+   256×1 프레임버퍼에 셰이더의 wave() 결과를 그려서 waveJS와 비교한다.
+   나중에 한쪽 식만 고쳤을 때 조용히 어긋나는 걸 잡아준다.
+   ========================================================================= */
+function selfCheckWave(){
+  const N = 256;
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE){
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return {skipped:'framebuffer 미지원'};
+  }
+
+  // 인코딩 범위(±SCALE/2). 앱에서 나올 수 있는 최대 진폭은 펄스의 1.4×0.30 = 0.42 m 이므로
+  // S_SCALE은 그보다 넉넉해야 한다. 좁으면 값이 잘려서 없는 불일치가 보고된다.
+  const S_SCALE = 1.2, G_SCALE = 4.0;
+  const vs = `precision highp float; attribute vec2 aXY;
+    void main(){ gl_Position = vec4(aXY, 0.0, 1.0); }`;
+  const fs = `precision highp float;
+    uniform float uL; uniform float uN;
+    ${WAVE_UNIFORMS}
+    ${WAVE_GLSL}
+    vec2 pack(float v){ v = clamp(v, 0.0, 1.0);
+      float hi = floor(v * 255.0) / 255.0; return vec2(hi, (v - hi) * 255.0); }
+    void main(){
+      float x = (floor(gl_FragCoord.x) + 0.5) / uN * uL;
+      float s, g; wave(x, s, g);
+      gl_FragColor = vec4(pack(s / ${S_SCALE.toFixed(1)} + 0.5),
+                          pack(g / ${G_SCALE.toFixed(1)} + 0.5));
+    }`;
+  const prog = program(vs, fs);
+  const U = uniforms(prog, ['uL','uN','uA','uK','uSigma','uFront','uPhase','uMode','uActive','uEnvLen']);
+  const quad = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+
+  const cases = [
+    {name:'연속 파동', L:3,  A:0.11, k:8.05, sigma:0.20, front:2.10, phase:1.37, mode:0, active:1, envLen:ENV_LEN},
+    {name:'단일 펄스', L:3,  A:0.27, k:8.05, sigma:0.195,front:1.50, phase:0.00, mode:1, active:1, envLen:ENV_LEN},
+    {name:'먼 거리',   L:340,A:0.27, k:1.85, sigma:0.30, front:120.0,phase:2.90, mode:0, active:1, envLen:ENV_LEN}
+  ];
+
+  const px = new Uint8Array(N * 4);
+  const report = [];
+  gl.viewport(0, 0, N, 1);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  for(const c of cases){
+    gl.uniform1f(U.uL, c.L); gl.uniform1f(U.uN, N);
+    setWaveUniforms(U, c);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.readPixels(0, 0, N, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+
+    let maxS = 0, maxG = 0;
+    for(let i = 0; i < N; i++){
+      const x = (i + 0.5) / N * c.L;
+      const ref = waveJS(x, c);
+      const sGl = ((px[i*4+0] + px[i*4+1] / 255) / 255 - 0.5) * S_SCALE;
+      const gGl = ((px[i*4+2] + px[i*4+3] / 255) / 255 - 0.5) * G_SCALE;
+      maxS = Math.max(maxS, Math.abs(sGl - ref.s));
+      maxG = Math.max(maxG, Math.abs(gGl - ref.g));
+    }
+    report.push({case:c.name, maxErrS:maxS, maxErrG:maxG});
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.deleteFramebuffer(fbo); gl.deleteTexture(tex); gl.deleteBuffer(quad); gl.deleteProgram(prog);
+
+  // 허용 오차: 8bit×2 양자화(≈6e-5) + float32 오차를 감안한 여유값
+  const TOL_S = 2e-3, TOL_G = 8e-3;
+  const bad = report.filter(r => r.maxErrS > TOL_S || r.maxErrG > TOL_G);
+  if(bad.length){
+    console.error('[SoundWave] ⚠ 셰이더(WAVE_GLSL)와 JS(waveJS)의 파동 공식이 어긋납니다:\n' +
+      bad.map(r => `  ${r.case}: Δs=${r.maxErrS.toExponential(2)} (허용 ${TOL_S}) ` +
+                   `Δ(ds/dx)=${r.maxErrG.toExponential(2)} (허용 ${TOL_G})`).join('\n'));
+  } else {
+    console.log('[SoundWave] ✓ 파동 공식 일치 확인 (셰이더 = JS)',
+      report.map(r => `${r.case}: Δs=${r.maxErrS.toExponential(1)} Δ(ds/dx)=${r.maxErrG.toExponential(1)}`).join(' | '));
+  }
+  return {report, ok: bad.length === 0};
+}
+
+// ---------- 입자 데이터 ----------
+const N_AIR = 14000, N_TRACK = 48, N_ALL = N_AIR + N_TRACK;
+const rest = new Float32Array(N_ALL * 3);
+const rand = new Float32Array(N_ALL * 2);
+const tagA = new Float32Array(N_ALL);
+
+for(let i = 0; i < N_AIR; i++){
+  rest[i*3+0] = Math.random();                      // 0~1 정규화 (거리 바뀌어도 재생성 불필요)
+  rest[i*3+1] = (Math.random() - 0.5) * VIS_H;
+  rest[i*3+2] = (Math.random() - 0.5) * VIS_D;
+  rand[i*2+0] = Math.random();
+  rand[i*2+1] = Math.random();
+}
+for(let j = 0; j < N_TRACK; j++){
+  const i = N_AIR + j;
+  rest[i*3+0] = (j + 0.5) / N_TRACK;
+  rest[i*3+1] = 0; rest[i*3+2] = 0;
+  rand[i*2+0] = Math.random(); rand[i*2+1] = Math.random();
+  tagA[i] = 1;
+}
+
+function buf(data, usage){
+  const b = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, data, usage || gl.STATIC_DRAW);
+  return b;
+}
+const bRest = buf(rest), bRand = buf(rand), bTag = buf(tagA);
+const bBox = gl.createBuffer();
+const bDyn = gl.createBuffer();
+let boxCount = 0;
+
+// 눈금 간격을 1-2-5 계열에서 고른다
+function niceStep(L, target){
+  const raw = L / target;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const m = raw / p;
+  return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+}
+let tickStep = 0.5;
+
+function rebuildBox(){
+  const L = S.dist;
+  tickStep = niceStep(L, 8);
+  const a = [];
+  const x0 = 0, x1 = VIS_LEN, y0 = -VIS_H/2, y1 = VIS_H/2, z0 = -VIS_D/2, z1 = VIS_D/2;
+  const c = [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+  [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]
+    .forEach(([p,q]) => a.push(...c[p], ...c[q]));
+  for(let d = 0; d <= L + 1e-9; d += tickStep){
+    const x = d / L * VIS_LEN;
+    a.push(x, y0, z0,  x, y0 + 0.07, z0);
+    a.push(x, y0, z1,  x, y0 + 0.07, z1);
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, bBox);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(a), gl.STATIC_DRAW);
+  boxCount = a.length / 3;
+}
+
+// ---------- 행렬 ----------
+function mat4(){ return new Float32Array(16); }
+function perspective(out, fovy, aspect, near, far){
+  const f = 1 / Math.tan(fovy/2), nf = 1/(near-far);
+  out.fill(0);
+  out[0]=f/aspect; out[5]=f; out[10]=(far+near)*nf; out[11]=-1; out[14]=2*far*near*nf;
+  return out;
+}
+function ortho(out, l, r, b, t, n, f){
+  out.fill(0);
+  out[0]=2/(r-l); out[5]=2/(t-b); out[10]=-2/(f-n); out[15]=1;
+  out[12]=-(r+l)/(r-l); out[13]=-(t+b)/(t-b); out[14]=-(f+n)/(f-n);
+  return out;
+}
+function lookAt(out, eye, ctr, up){
+  let z0=eye[0]-ctr[0], z1=eye[1]-ctr[1], z2=eye[2]-ctr[2];
+  let l = 1/Math.hypot(z0,z1,z2); z0*=l; z1*=l; z2*=l;
+  let x0=up[1]*z2-up[2]*z1, x1=up[2]*z0-up[0]*z2, x2=up[0]*z1-up[1]*z0;
+  l = Math.hypot(x0,x1,x2); l = l ? 1/l : 0; x0*=l; x1*=l; x2*=l;
+  const y0=z1*x2-z2*x1, y1=z2*x0-z0*x2, y2=z0*x1-z1*x0;
+  out[0]=x0; out[1]=y0; out[2]=z0; out[3]=0;
+  out[4]=x1; out[5]=y1; out[6]=z1; out[7]=0;
+  out[8]=x2; out[9]=y2; out[10]=z2; out[11]=0;
+  out[12]=-(x0*eye[0]+x1*eye[1]+x2*eye[2]);
+  out[13]=-(y0*eye[0]+y1*eye[1]+y2*eye[2]);
+  out[14]=-(z0*eye[0]+z1*eye[1]+z2*eye[2]);
+  out[15]=1;
+  return out;
+}
+function mul(out, a, b){
+  for(let i=0;i<4;i++){
+    const b0=b[i*4], b1=b[i*4+1], b2=b[i*4+2], b3=b[i*4+3];
+    out[i*4+0]=b0*a[0]+b1*a[4]+b2*a[8] +b3*a[12];
+    out[i*4+1]=b0*a[1]+b1*a[5]+b2*a[9] +b3*a[13];
+    out[i*4+2]=b0*a[2]+b1*a[6]+b2*a[10]+b3*a[14];
+    out[i*4+3]=b0*a[3]+b1*a[7]+b2*a[11]+b3*a[15];
+  }
+  return out;
+}
+const mProj = mat4(), mView = mat4(), mVP = mat4();
+
+// 렌더 좌표 x를 화면 가로 비율(0~1)로 투영
+function projX(x3){
+  const cx = mVP[0]*x3 + mVP[12];
+  const cw = mVP[3]*x3 + mVP[15];
+  return (cx / cw) * 0.5 + 0.5;
+}
+
+// ---------- 카메라 ----------
+const cam = { theta: 0.62, phi: 0.26, dist: 4.3, target: [VIS_LEN/2, 0, 0] };
+function camEye(){
+  const cp = Math.cos(cam.phi);
+  return [
+    cam.target[0] + cam.dist * cp * Math.sin(cam.theta),
+    cam.target[1] + cam.dist * Math.sin(cam.phi),
+    cam.target[2] + cam.dist * cp * Math.cos(cam.theta)
+  ];
+}
+
+const pointers = new Map();
+let pinchDist = 0;
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(pointers.size === 2){
+    const [a,b] = [...pointers.values()];
+    pinchDist = Math.hypot(a.x-b.x, a.y-b.y);
+  }
+});
+canvas.addEventListener('pointermove', e => {
+  const prev = pointers.get(e.pointerId);
+  if(!prev) return;
+  if(pointers.size === 1){
+    const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    if(dx || dy) S.aligned = false;              // 카메라를 돌리면 그래프 정렬을 푼다
+    cam.theta -= dx * 0.008;
+    cam.phi    = Math.max(-1.45, Math.min(1.45, cam.phi + dy * 0.006));
+  }
+  prev.x = e.clientX; prev.y = e.clientY;
+  if(pointers.size === 2){
+    const [a,b] = [...pointers.values()];
+    const d = Math.hypot(a.x-b.x, a.y-b.y);
+    if(pinchDist > 0){ cam.dist = Math.max(0.9, Math.min(11, cam.dist * pinchDist / d)); S.aligned = false; }
+    pinchDist = d;
+  }
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev =>
+  canvas.addEventListener(ev, e => { pointers.delete(e.pointerId); pinchDist = 0; }));
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  cam.dist = Math.max(0.9, Math.min(11, cam.dist * (1 + Math.sign(e.deltaY) * 0.11)));
+  S.aligned = false;
+}, {passive:false});
+
+// ---------- 상태 ----------
+const S = {
+  level: 'high',
+  dist: 3, far: false,
+  temp: 20, scale: 0.005, freq: 440, vol: 0.60,
+  mode: 0, playing: true, simTime: 0, jitTime: 0, pulseActive: 1,
+  density: 1, showTag: 1, restOnly: 0, showFront: 1, jitter: 1,
+  graph: false, aligned: false
+};
+
+// 스피커 진동판 위치 (waveJS를 그대로 쓴다)
+function sourceDisp(P){ return waveJS(0, P).s; }
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+
+function updateReadouts(){
+  const v = speed(), L = S.dist;
+  $('vDist').textContent  = S.far ? '340 m (1초 거리)' : L.toFixed(1) + ' m';
+  $('vTemp').textContent  = S.temp + ' °C';
+  $('hintV').textContent  = v.toFixed(1) + ' m/s';
+  $('vScale').textContent = (S.scale >= 0.1 ? S.scale.toFixed(2) : S.scale.toFixed(3)) + '×';
+  $('vPitch').textContent = Math.round(S.freq) + ' Hz';
+  $('vVol').textContent   = Math.round(S.vol * 100) + ' %';
+
+  $('hV').textContent   = v.toFixed(1) + ' m/s';
+  $('hLam').textContent = lambda().toFixed(3) + ' m';
+  $('hF').textContent   = Math.round(S.freq) + ' Hz';
+  $('hCyc').textContent = (L / lambda()).toFixed(1) + ' 개';
+  $('hArr').textContent = (L / v).toFixed(5) + ' 초';
+
+  $('bFar').classList.toggle('on', S.far);
+
+  // 파장이 화면 해상도보다 작아지면 알려준다 (340 m에서만 걸린다)
+  const boxPx = Math.max(canvas.clientWidth * 0.85, 1);
+  const pxPerWave = boxPx * lambda() / L;
+  const warn = pxPerWave < 6;
+  $('badge').classList.toggle('on', warn);
+  if(warn){
+    $('badge').innerHTML = '이 거리에서는 공기 입자의 진동이 화면 1픽셀보다 작습니다.<br>' +
+      '<b>파면(파란 면)의 이동과 경과 시간</b>을 보세요.';
+  }
+}
+
+function setDist(L, isFar){
+  S.dist = L; S.far = !!isFar;
+  rebuildBox(); updateReadouts();
+}
+
+$('sDist').oninput  = e => { setDist(+e.target.value, false); };
+$('sTemp').oninput  = e => { S.temp = +e.target.value; updateReadouts(); };
+$('sScale').oninput = e => { S.scale = 0.001 * Math.pow(1000, +e.target.value / 100); updateReadouts(); };
+$('sPitch').oninput = e => { S.freq  = 100 * Math.pow(20, +e.target.value / 100); updateReadouts(); };
+$('sVol').oninput   = e => { S.vol   = +e.target.value / 100; updateReadouts(); };
+
+$('bFar').onclick = () => {
+  // 1초 거리: 340 m, 14 °C(v ≈ 339.9 m/s), 펄스, 실제 시간 배율
+  setDist(DIST_FAR, true);
+  S.temp = 14;   $('sTemp').value = 14;
+  S.scale = 1.0; $('sScale').value = 100;
+  setMode(1);
+  S.showFront = 1; $('oFront').checked = true;
+  updateReadouts();
+};
+
+function setMode(m){
+  S.mode = m;
+  $('mCont').classList.toggle('on', m === 0);
+  $('mPulse').classList.toggle('on', m === 1);
+  $('pulseRow').style.display = m === 1 ? 'flex' : 'none';
+  reset();
+  if(m === 1) S.playing = false;
+  syncPlay(); updateReadouts();
+}
+$('mCont').onclick  = () => setMode(0);
+$('mPulse').onclick = () => setMode(1);
+
+function reset(){ S.simTime = 0; S.pulseActive = S.mode === 0 ? 1 : 0; }
+function syncPlay(){ $('bPlay').textContent = S.playing ? '⏸ 일시정지' : '▶ 재생'; }
+
+$('bPlay').onclick  = () => { S.playing = !S.playing; syncPlay(); };
+$('bReset').onclick = () => { reset(); };
+$('bFire').onclick  = () => { S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); };
+
+function frontView(){ cam.theta = 0; cam.phi = 0; cam.dist = 4.0; S.aligned = true; }
+
+$('oGraph').onchange = e => {
+  S.graph = e.target.checked;
+  $('graphwrap').classList.toggle('on', S.graph);
+  if(S.graph) frontView();          // 그래프를 켜면 정면 + 직교 투영으로 정렬
+  else S.aligned = false;
+};
+$('oDens').onchange  = e => S.density   = e.target.checked ? 1 : 0;
+$('oTrack').onchange = e => S.showTag   = e.target.checked ? 1 : 0;
+$('oRest').onchange  = e => { S.restOnly = e.target.checked ? 1 : 0; $('eRest').checked = e.target.checked; };
+$('oFront').onchange = e => S.showFront = e.target.checked ? 1 : 0;
+$('oJit').onchange   = e => S.jitter    = e.target.checked ? 1 : 0;
+
+$('vFront').onclick = () => frontView();
+$('vSide').onclick  = () => { cam.theta = Math.PI/2; cam.phi = 0.05; cam.dist = 4.6; S.aligned = false; };
+$('vIso').onclick   = () => { cam.theta = 0.62; cam.phi = 0.26; cam.dist = 4.3; S.aligned = false; };
+
+/* =========================================================================
+   학교급 모드 — 초등(elem) / 중·고등(high)
+   초등에서는 교육과정에 없는 변인(온도·거리·파장·그래프)을 감추고 값을 고정한다.
+   시뮬레이션 자체(물리 계산)는 두 모드가 완전히 같다.
+   ========================================================================= */
+const E_VOL    = [0.25, 0.45, 0.60, 0.80, 1.00];
+const E_VOL_N  = ['아주 작게','작게','보통','크게','아주 크게'];
+const E_FREQ   = [150, 250, 400, 650, 1000];        // 3 m 상자에서 파장 1.3~8.7개
+const E_FREQ_N = ['아주 낮게','낮게','보통','높게','아주 높게'];
+const E_SCALE  = [0.001, 0.005, 0.02, 0.1, 1.0];
+const E_SCALE_N= ['아주 느리게','느리게','조금 느리게','빠르게','실제 속도'];
+
+function applyElemControls(){
+  const iv = +$('eVol').value, ip = +$('ePitch').value, it = +$('eTime').value;
+  S.vol = E_VOL[iv]; S.freq = E_FREQ[ip]; S.scale = E_SCALE[it];
+  $('eVolV').textContent   = E_VOL_N[iv];
+  $('ePitchV').textContent = E_FREQ_N[ip];
+  $('eTimeV').textContent  = E_SCALE_N[it];
+  updateReadouts();
+}
+['eVol','ePitch','eTime'].forEach(id => $(id).oninput = applyElemControls);
+
+// 중·고등 슬라이더/체크박스를 현재 상태에 맞춘다 (모드를 오갈 때 표시가 어긋나지 않도록)
+function syncHighControls(){
+  $('sDist').value  = S.far ? DIST_MAX : S.dist;
+  $('sTemp').value  = S.temp;
+  $('sScale').value = Math.log(S.scale / 0.001) / Math.log(1000) * 100;
+  $('sPitch').value = Math.log(S.freq / 100) / Math.log(20) * 100;
+  $('sVol').value   = Math.round(S.vol * 100);
+  $('oGraph').checked = S.graph;
+  $('oDens').checked  = !!S.density;
+  $('oTrack').checked = !!S.showTag;
+  $('oRest').checked  = !!S.restOnly;
+  $('oFront').checked = !!S.showFront;
+  $('oJit').checked   = !!S.jitter;
+}
+
+function setLevel(l){
+  S.level = l;
+  document.body.classList.toggle('elem', l === 'elem');
+  document.body.classList.toggle('high', l === 'high');
+  $('lvE').classList.toggle('on', l === 'elem');
+  $('lvH').classList.toggle('on', l === 'high');
+
+  if(l === 'elem'){
+    // 초등 교육과정에 없는 변인은 표준값으로 고정한다
+    S.temp = 20;
+    setDist(3, false);
+    S.graph = false; $('graphwrap').classList.remove('on'); S.aligned = false;
+    S.density = 1; S.showTag = 1; S.showFront = 1; S.jitter = 1;
+    S.restOnly = $('eRest').checked ? 1 : 0;
+    applyElemControls();
+    if(cam.theta === 0 && cam.phi === 0){ cam.theta = 0.62; cam.phi = 0.26; cam.dist = 4.3; }
+  }
+  syncHighControls();
+  updateReadouts();
+}
+
+$('lvE').onclick = () => setLevel('elem');
+$('lvH').onclick = () => setLevel('high');
+$('lpElem').onclick = () => { setLevel('elem'); $('levelPick').classList.add('done'); };
+$('lpHigh').onclick = () => { setLevel('high'); $('levelPick').classList.add('done'); };
+
+// 초등 모드 버튼
+$('eSound').onclick = () => { setMode(0); S.playing = true;  syncPlay(); };
+$('eStop').onclick  = () => { S.playing = false; syncPlay(); };
+$('eClap').onclick  = () => { setMode(1); S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); };
+$('eReset').onclick = () => { reset(); };
+$('eRest').onchange = e => { S.restOnly = e.target.checked ? 1 : 0; $('oRest').checked = e.target.checked; };
+$('eFrontView').onclick = () => { cam.theta = 0; cam.phi = 0; cam.dist = 4.0; S.aligned = false; };
+$('eIsoView').onclick   = () => { cam.theta = 0.62; cam.phi = 0.26; cam.dist = 4.3; S.aligned = false; };
+
+addEventListener('keydown', e => {
+  if(e.target.tagName === 'INPUT') return;
+  if(e.code === 'Space'){ e.preventDefault(); S.playing = !S.playing; syncPlay(); }
+  if(e.key === 'r' || e.key === 'R') reset();
+  if(e.key === 'p' || e.key === 'P'){ setMode(1); $('bFire').click(); }
+});
+
+// ---------- 렌더 ----------
+let dpr = 1;
+const gcv = document.getElementById('graph');
+const gx  = gcv.getContext('2d');
+
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if(canvas.width !== w*dpr || canvas.height !== h*dpr){
+    canvas.width = w*dpr; canvas.height = h*dpr;
+  }
+  if(S.graph){
+    const gw = gcv.clientWidth, gh = gcv.clientHeight;
+    if(gcv.width !== gw*dpr || gcv.height !== gh*dpr){
+      gcv.width = gw*dpr; gcv.height = gh*dpr;
+    }
+  }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+addEventListener('resize', resize);
+
+function drawLines(b, count, color, width, blend){
+  gl.useProgram(lProg);
+  gl.uniformMatrix4fv(LU.uVP, false, mVP);
+  gl.uniform4fv(LU.uColor, color);
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.enableVertexAttribArray(LA.aPos);
+  gl.vertexAttribPointer(LA.aPos, 3, gl.FLOAT, false, 0, 0);
+  gl.lineWidth(width || 1);
+  if(blend){ gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
+  gl.drawArrays(gl.LINES, 0, count);
+  if(blend) gl.disable(gl.BLEND);
+}
+function dynLines(arr, color, width, blend){
+  gl.bindBuffer(gl.ARRAY_BUFFER, bDyn);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
+  drawLines(bDyn, arr.length/3, color, width, blend);
+}
+function rectLines(x, hy, hz){
+  return [ x,-hy,-hz, x, hy,-hz,  x, hy,-hz, x, hy, hz,
+           x, hy, hz, x,-hy, hz,  x,-hy, hz, x,-hy,-hz ];
+}
+
+// 밀(압축) 지점 찾기 — 그래프와 3D 안내선이 같은 목록을 쓴다.
+// 문턱값은 현재 파형의 최대 압축에 비례시킨다(볼륨을 낮춰도 표시가 사라지지 않도록).
+function findCompressions(P, L, samples){
+  const g = new Float64Array(samples);
+  let gMin = 0;
+  for(let i = 0; i < samples; i++){
+    g[i] = waveJS(i / (samples - 1) * L, P).g;
+    if(g[i] < gMin) gMin = g[i];
+  }
+  if(gMin > -1e-4) return [];
+  const thr = gMin * 0.45;
+  const out = [];
+  for(let i = 1; i < samples - 1; i++){
+    if(g[i] < g[i-1] && g[i] <= g[i+1] && g[i] < thr) out.push(i / (samples - 1) * L);
+  }
+  return out;
+}
+
+// ---------- 그래프 ----------
+function drawGraph(P, L){
+  const W = gcv.width, H = gcv.height;
+  gx.setTransform(1,0,0,1,0,0);
+  gx.clearRect(0,0,W,H);
+  gx.fillStyle = '#0a0e18'; gx.fillRect(0,0,W,H);
+
+  // 3D 상자와 같은 화면 x 범위를 쓴다 (정면+직교일 때 픽셀 단위로 일치)
+  let left, right;
+  if(S.aligned){ left = projX(0) * W; right = projX(VIS_LEN) * W; }
+  else { left = W * 0.07; right = W * 0.93; }
+  const span = right - left;
+
+  const padT = 12 * dpr, stripH = 26 * dpr, axisH = 22 * dpr;
+  const curveTop = padT, curveBot = H - axisH - stripH - 8 * dpr;
+  const midY = (curveTop + curveBot) / 2;
+  const halfY = (curveBot - curveTop) / 2;
+
+  const N = Math.max(200, Math.min(700, Math.round(span / dpr)));
+  const xs = new Float64Array(N), ss = new Float64Array(N), gs = new Float64Array(N);
+  for(let i = 0; i < N; i++){
+    const x = i / (N - 1) * L;
+    const r = waveJS(x, P);
+    xs[i] = x; ss[i] = r.s; gs[i] = r.g;
+  }
+
+  // 변위 기준 진폭 (볼륨을 올리면 곡선이 커진다)
+  const k = P.k;
+  const Aref = (P.mode < 0.5 ? Math.min(GRAD_REF / k, 0.24) : 1.4 * sigma()) || 1e-6;
+
+  // 밀도 색 띠 — 3D 입자와 완전히 같은 색 규칙
+  const stripY = curveBot + 8 * dpr;
+  for(let i = 0; i < N; i++){
+    const cn = Math.max(-1, Math.min(1, -gs[i] / GRAD_REF)) * (S.density ? 1 : 0);
+    const mid = [0.55,0.67,0.85], comp = [1.0,0.72,0.28], rar = [0.16,0.28,0.52];
+    const t = Math.max(cn, 0), u = Math.max(-cn, 0);
+    const c = mid.map((m,j) => (m + (comp[j]-m)*t) * (1-u) + rar[j]*u);
+    gx.fillStyle = `rgb(${c.map(q=>Math.round(q*255)).join(',')})`;
+    gx.fillRect(left + i/(N-1)*span, stripY, span/(N-1) + 1, stripH);
+  }
+  gx.strokeStyle = '#28324a'; gx.lineWidth = 1*dpr;
+  gx.strokeRect(left, stripY, span, stripH);
+
+  // 0선
+  gx.strokeStyle = '#233049'; gx.lineWidth = 1*dpr;
+  gx.beginPath(); gx.moveTo(left, midY); gx.lineTo(right, midY); gx.stroke();
+
+  // 밀 지점 안내선
+  const comps = findCompressions(P, L, 900);
+  if(comps.length <= 14){
+    gx.strokeStyle = 'rgba(255,184,77,.45)';
+    gx.lineWidth = 1*dpr;
+    gx.setLineDash([3*dpr, 3*dpr]);
+    comps.forEach(cx => {
+      const px = left + cx / L * span;
+      gx.beginPath(); gx.moveTo(px, curveTop); gx.lineTo(px, stripY + stripH); gx.stroke();
+    });
+    gx.setLineDash([]);
+    if(comps.length){
+      gx.fillStyle = '#ffb84d';
+      gx.font = `700 ${10.5*dpr}px system-ui, sans-serif`;
+      gx.textAlign = 'center';
+      gx.fillText('밀', left + comps[0] / L * span, curveTop + 10*dpr);
+    }
+  }
+
+  // 변위 곡선
+  gx.strokeStyle = '#5fd0ff'; gx.lineWidth = 2*dpr;
+  gx.beginPath();
+  for(let i = 0; i < N; i++){
+    const px = left + i/(N-1)*span;
+    const py = midY - (ss[i] / Aref) * halfY * 0.92;
+    i ? gx.lineTo(px, py) : gx.moveTo(px, py);
+  }
+  gx.stroke();
+
+  // 파면
+  if(P.front > 0 && P.front <= L * 1.001){
+    const px = left + P.front / L * span;
+    gx.strokeStyle = '#5ed2ff'; gx.lineWidth = 2*dpr;
+    gx.beginPath(); gx.moveTo(px, curveTop); gx.lineTo(px, stripY + stripH); gx.stroke();
+  }
+
+  // x축 눈금 + 라벨(m)
+  gx.strokeStyle = '#28324a'; gx.lineWidth = 1*dpr;
+  gx.fillStyle = '#7c8aa4';
+  gx.font = `${10.5*dpr}px system-ui, sans-serif`;
+  gx.textAlign = 'center';
+  const axisY = stripY + stripH;
+  for(let d = 0; d <= L + 1e-9; d += tickStep){
+    const px = left + d / L * span;
+    gx.beginPath(); gx.moveTo(px, axisY); gx.lineTo(px, axisY + 4*dpr); gx.stroke();
+    const lbl = tickStep >= 1 ? d.toFixed(0) : d.toFixed(1);
+    gx.fillText(lbl, px, axisY + 15*dpr);
+  }
+  gx.textAlign = 'left';
+  gx.fillStyle = '#5fd0ff';
+  gx.fillText('변위 s(x)', left + 4*dpr, curveTop + 10*dpr);
+  gx.fillStyle = '#7c8aa4';
+  gx.textAlign = 'right';
+  gx.fillText('거리 (m)', right, axisY + 15*dpr);
+  if(!S.aligned){
+    gx.textAlign = 'right';
+    gx.fillStyle = '#6d7c96';
+    gx.fillText('정렬 해제됨 — 정면 시점을 누르면 3D와 맞춰집니다', right - 4*dpr, curveTop + 10*dpr);
+  }
+}
+
+// ---------- 메인 루프 ----------
+let last = performance.now();
+function frame(now){
+  const dtReal = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  if(S.playing){ S.simTime += dtReal * S.scale; S.jitTime += dtReal * 1.2; }
+
+  resize();
+
+  const L = S.dist;
+  const P = waveParams();
+
+  // 카메라 / 투영
+  const FOV = 45 * Math.PI/180;
+  const aspect = canvas.width / Math.max(canvas.height, 1);
+  let wRef = 0;                       // 0이면 원근(셰이더가 gl_Position.w를 쓴다)
+  if(S.aligned){
+    const halfW = VIS_LEN * 0.58;
+    const halfH = Math.max(halfW / aspect, VIS_H * 0.75);
+    ortho(mProj, -halfW, halfW, -halfH, halfH, 0.05, 60);
+    wRef = halfH / Math.tan(FOV/2);   // 원근과 같은 겉보기 크기가 되는 기준 깊이
+  } else {
+    perspective(mProj, FOV, aspect, 0.05, 60);
+  }
+  lookAt(mView, camEye(), cam.target, [0,1,0]);
+  mul(mVP, mProj, mView);
+
+  gl.clearColor(0.031, 0.043, 0.078, 1);
+  gl.enable(gl.DEPTH_TEST);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  drawLines(bBox, boxCount, [0.22, 0.30, 0.44, 1], 1);
+
+  // 그래프가 켜지고 정렬된 상태에서만 밀 지점 안내선을 3D에도 그린다
+  if(S.graph && S.aligned && S.density){
+    const comps = findCompressions(P, L, 900);
+    if(comps.length && comps.length <= 14){
+      const a = [];
+      comps.forEach(cx => {
+        const rx = cx / L * VIS_LEN;
+        a.push(rx, -VIS_H/2, 0,  rx, VIS_H/2, 0);
+      });
+      dynLines(a, [1.0, 0.72, 0.28, 0.30], 1, true);
+    }
+  }
+
+  // 스피커 진동판
+  const sdRender = sourceDisp(P) / L * VIS_LEN;
+  dynLines(rectLines(sdRender, VIS_H/2 * 0.62, VIS_D/2 * 0.62)
+    .concat([sdRender,-VIS_H/2*0.62,0, sdRender,VIS_H/2*0.62,0,
+             sdRender,0,-VIS_D/2*0.62, sdRender,0,VIS_D/2*0.62]),
+    [1.0, 0.72, 0.28, 1], 2);
+
+  // 파면
+  const frontR = P.front / L * VIS_LEN;
+  if(S.showFront && P.front > 0.0001 && frontR < VIS_LEN * 1.02){
+    dynLines(rectLines(frontR, VIS_H/2, VIS_D/2), [0.37, 0.82, 1.0, 1], S.far ? 3 : 2);
+  }
+
+  // 입자
+  gl.useProgram(pProg);
+  gl.uniformMatrix4fv(PU.uVP, false, mVP);
+  gl.uniform1f(PU.uL, L);
+  gl.uniform1f(PU.uVisLen, VIS_LEN);
+  gl.uniform1f(PU.uJitter, S.jitter ? 0.0022 * (1 + (S.temp + 20) / 60) : 0);
+  gl.uniform1f(PU.uJitTime, S.jitTime);
+  gl.uniform1f(PU.uWRef, wRef);
+  gl.uniform1f(PU.uPointScale, 3.4 * dpr);
+  gl.uniform1f(PU.uDensity, S.density);
+  gl.uniform1f(PU.uRestOnly, S.restOnly);
+  gl.uniform1f(PU.uShowTag, S.showTag);
+  gl.uniform1f(PU.uGradRef, GRAD_REF);
+  setWaveUniforms(PU, P);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, bRest);
+  gl.enableVertexAttribArray(PA.aRest);
+  gl.vertexAttribPointer(PA.aRest, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bRand);
+  gl.enableVertexAttribArray(PA.aRand);
+  gl.vertexAttribPointer(PA.aRand, 2, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bTag);
+  gl.enableVertexAttribArray(PA.aTag);
+  gl.vertexAttribPointer(PA.aTag, 1, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.POINTS, 0, N_ALL);
+
+  if(S.graph) drawGraph(P, L);
+
+  // HUD
+  $('hFront').textContent = P.front >= L
+    ? L.toFixed(1) + ' m · 도달 완료'
+    : P.front.toFixed(L >= 100 ? 1 : 3) + ' / ' + L.toFixed(1) + ' m';
+  $('hT').textContent = S.simTime.toFixed(5) + ' 초';
+
+  requestAnimationFrame(frame);
+}
+
+// ---------- 시작 ----------
+selfCheckWave();
+rebuildBox();
+setLevel('high');      // 선택 화면 뒤에서 기본 상태로 돌려둔다
+updateReadouts();
+reset();
+syncPlay();
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
