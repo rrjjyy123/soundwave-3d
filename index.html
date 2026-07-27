@@ -144,6 +144,10 @@
     #legend,#tip{display:none;}
     #badge{font-size:10.5px;max-width:78%;padding:6px 10px;}
   }
+
+  /* ---------- 오디오 토글 ---------- */
+  .btns button.audio{transition:background .2s,border-color .2s,color .2s;}
+  .btns button.audio.on{background:var(--accent);border-color:var(--accent);color:#04121c;}
 </style>
 </head>
 <body>
@@ -199,6 +203,7 @@
           <button id="eClap" class="primary">👏 박수 치기</button>
           <button id="eReset">↺ 처음부터</button>
         </div>
+        <div class="btns"><button id="aToggleE" class="audio">🔇 소리 듣기</button></div>
       </div>
 
       <div class="card">
@@ -256,6 +261,7 @@
       <div class="btns" id="pulseRow" style="display:none">
         <button id="bFire" class="primary">👏 박수 치기 (펄스 발사)</button>
       </div>
+      <div class="btns" style="margin-top:4px"><button id="aToggleH" class="audio">🔇 소리 듣기</button></div>
     </div>
 
     <div class="card">
@@ -836,6 +842,81 @@ function sourceDisp(P){ return waveJS(0, P).s; }
 // ---------- UI ----------
 const $ = id => document.getElementById(id);
 
+/* =========================================================================
+   AudioEngine — Web Audio API로 시뮬레이션 소리 재생
+   연속 파동: 사인파 오실레이터 (freq·vol 실시간 반영)
+   단일 펄스: 짧은 사인파 버스트 (freq 반영)
+   ========================================================================= */
+const AudioEng = {
+  ctx:null, osc:null, gain:null, enabled:false,
+
+  init(){
+    if(this.ctx) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.gain = this.ctx.createGain();
+    this.gain.gain.value = 0;
+    this.gain.connect(this.ctx.destination);
+  },
+
+  toggle(){
+    this.init();
+    this.enabled = !this.enabled;
+    this.syncBtn();
+    this.sync();
+  },
+
+  syncBtn(){
+    const on = this.enabled;
+    ['aToggleE','aToggleH'].forEach(id => {
+      $(id).classList.toggle('on', on);
+      $(id).textContent = on ? '🔊 소리 끄기' : '🔇 소리 듣기';
+    });
+  },
+
+  // 매 프레임 호출 — 시뮬 상태에 맞춰 오디오 동기화
+  sync(){
+    if(!this.ctx) return;
+    const want = this.enabled && S.playing && S.mode === 0;
+    const t = this.ctx.currentTime;
+    if(want){
+      if(!this.osc){
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        this.osc = this.ctx.createOscillator();
+        this.osc.type = 'sine';
+        this.osc.frequency.value = S.freq;
+        this.osc.connect(this.gain);
+        this.osc.start();
+      }
+      this.osc.frequency.setTargetAtTime(S.freq, t, 0.02);
+      this.gain.gain.setTargetAtTime(S.vol * 0.3, t, 0.05);
+    } else if(this.osc){
+      this.gain.gain.setTargetAtTime(0, t, 0.02);
+      const o = this.osc; this.osc = null;
+      o.stop(t + 0.12);
+      o.onended = () => { try{ o.disconnect(); }catch(e){} };
+    }
+  },
+
+  firePulse(){
+    if(!this.ctx || !this.enabled) return;
+    if(this.ctx.state === 'suspended') this.ctx.resume();
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const env = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = S.freq;
+    osc.connect(env);
+    env.connect(this.ctx.destination);
+    env.gain.setValueAtTime(Math.max(S.vol * 0.5, 0.05), t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc.start(t);
+    osc.stop(t + 0.22);
+  }
+};
+
+$('aToggleE').onclick = () => AudioEng.toggle();
+$('aToggleH').onclick = () => AudioEng.toggle();
+
 function updateReadouts(){
   const v = speed(), L = S.dist;
   $('vDist').textContent  = S.far ? '340 m (1초 거리)' : L.toFixed(1) + ' m';
@@ -910,7 +991,7 @@ $('bPlay').onclick  = () => {
   S.playing = !S.playing; syncPlay();
 };
 $('bReset').onclick = () => { reset(); };
-$('bFire').onclick  = () => { S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); };
+$('bFire').onclick  = () => { S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); AudioEng.firePulse(); };
 
 function frontView(){ cam.theta = 0; cam.phi = 0; cam.dist = 4.0; S.aligned = true; }
 
@@ -996,7 +1077,7 @@ $('lpHigh').onclick = () => { setLevel('high'); $('levelPick').classList.add('do
 // 초등 모드 버튼
 $('eSound').onclick = () => { setMode(0); S.playing = true;  syncPlay(); };
 $('eStop').onclick  = () => { S.playing = false; syncPlay(); };
-$('eClap').onclick  = () => { setMode(1); S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); };
+$('eClap').onclick  = () => { setMode(1); S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); AudioEng.firePulse(); };
 $('eReset').onclick = () => { reset(); };
 $('eRest').onchange = e => { S.restOnly = e.target.checked ? 1 : 0; $('oRest').checked = e.target.checked; };
 $('eFrontView').onclick = () => { cam.theta = 0; cam.phi = 0; cam.dist = 4.0; S.aligned = false; };
@@ -1267,6 +1348,8 @@ function frame(now){
   gl.drawArrays(gl.POINTS, 0, N_ALL);
 
   if(S.graph) drawGraph(P, L);
+
+  AudioEng.sync();
 
   // HUD
   $('hFront').textContent = !waveLive()
