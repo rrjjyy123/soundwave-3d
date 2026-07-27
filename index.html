@@ -83,7 +83,7 @@
   .ctl:last-child{margin-bottom:2px;}
   .ctl .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:6px;}
   .ctl .lab .v{font-variant-numeric:tabular-nums;font-weight:700;color:var(--accent);font-size:12.5px;}
-  .ctl .hint{font-size:10.5px;color:#6d7c96;margin-top:4px;}
+  .hint{font-size:10.5px;color:#6d7c96;margin-top:4px;line-height:1.6;}
   input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
       background:#2b3752;outline:none;margin:0;}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;
@@ -144,10 +144,6 @@
     #legend,#tip{display:none;}
     #badge{font-size:10.5px;max-width:78%;padding:6px 10px;}
   }
-
-  /* ---------- 오디오 토글 ---------- */
-  .btns button.audio{transition:background .2s,border-color .2s,color .2s;}
-  .btns button.audio.on{background:var(--accent);border-color:var(--accent);color:#04121c;}
 </style>
 </head>
 <body>
@@ -200,10 +196,9 @@
           <button id="eStop">⏸ 멈추기</button>
         </div>
         <div class="btns">
-          <button id="eClap" class="primary">👏 박수 치기</button>
+          <button id="eClap" class="primary">👐 한 번 밀기</button>
           <button id="eReset">↺ 처음부터</button>
         </div>
-        <div class="btns"><button id="aToggleE" class="audio">🔇 소리 듣기</button></div>
       </div>
 
       <div class="card">
@@ -229,7 +224,9 @@
       </div>
 
       <div class="card">
-        <div class="t">보는 방법</div>
+        <div class="t">보기 · 듣기</div>
+        <label class="chk"><input type="checkbox" id="eHear"> 🎧 소리 들리게 하기</label>
+        <div class="hint">화면은 느려도 <b>소리는 실제 빠르기</b>로 나요.</div>
         <label class="chk"><input type="checkbox" id="eRest"> 노란 알갱이의 <b>원래 자리</b> 보기</label>
         <div class="btns">
           <button id="eFrontView">앞에서 보기</button>
@@ -242,7 +239,8 @@
         ① <b>노란 알갱이</b>를 보세요. 멀리 날아가지 않고 <b>제자리에서 앞뒤로만</b> 왔다 갔다 해요.<br>
         ② 알갱이가 <b>촘촘한 곳</b>과 <b>듬성듬성한 곳</b>이 번갈아 지나가요. 이렇게 소리가 전달돼요.<br>
         ③ 소리를 <b>크게</b> 하면 알갱이가 더 많이 움직이고, <b>높게</b> 하면 더 촘촘해져요.<br>
-        ④ <b>실제 속도</b>로 하면 너무 빨라서 안 보여요. 진짜 소리가 그래요!
+        ④ <b>한 번 밀기</b>는 공기를 딱 한 번만 밀어요. 진짜 손뼉 소리는 이런 밀림이 아주 빠르게 <b>여러 번</b> 겹쳐 있어요.<br>
+        ⑤ <b>실제 속도</b>로 하면 너무 빨라서 안 보여요. 진짜 소리가 그래요!
       </div>
     </div>
 
@@ -252,16 +250,19 @@
       <div class="t">음원 모드</div>
       <div class="seg">
         <button id="mCont" class="on">🔊 연속 파동</button>
-        <button id="mPulse">👏 단일 펄스</button>
+        <button id="mPulse">👐 단일 펄스</button>
       </div>
       <div class="btns">
         <button id="bPlay" class="primary">⏸ 일시정지</button>
         <button id="bReset">↺ 리셋</button>
       </div>
       <div class="btns" id="pulseRow" style="display:none">
-        <button id="bFire" class="primary">👏 박수 치기 (펄스 발사)</button>
+        <button id="bFire" class="primary">👐 공기 한 번 밀기</button>
       </div>
-      <div class="btns" style="margin-top:4px"><button id="aToggleH" class="audio">🔇 소리 듣기</button></div>
+      <div class="hint" id="pulseHint" style="display:none">
+        공기를 <b>딱 한 번</b> 밀어 압축 1개와 희박 1개만 만듭니다.
+        실제 박수·북소리는 짧은 순간에도 <b>여러 번 떨리지만</b>, 여기서는 가장 단순한 한 번만 봅니다.
+      </div>
     </div>
 
     <div class="card">
@@ -301,6 +302,9 @@
 
     <div class="card">
       <div class="t">표시 옵션</div>
+      <label class="chk"><input type="checkbox" id="oSound"> 🎧 소리 듣기 (연속 파동)</label>
+      <div class="hint">화면은 느리게 보여도 <b>소리는 실제 빠르기</b>로 납니다.
+        슬로우 모션에 맞춰 낮추면 사람이 들을 수 없는 음이 되기 때문입니다.</div>
       <label class="chk"><input type="checkbox" id="oGraph"> 📈 그래프 보기 (정면 시점으로 전환)</label>
       <label class="chk"><input type="checkbox" id="oDens" checked> 밀도(소밀) 색상 표시</label>
       <label class="chk"><input type="checkbox" id="oTrack" checked> 추적 입자(노랑) 표시</label>
@@ -380,7 +384,7 @@ void wave(in float x, out float s, out float g){
   if(uMode < 0.5){
     // 연속 파동: 파면이 지나간 곳만 진동한다.
     // 부호가 음수인 이유 — 음원이 처음에 공기를 '미는' 것으로 시작하게 하기 위함이다.
-    // 그래야 파면 바로 뒤가 압축(밀)이 되어 박수(펄스)와 앞뒤 순서가 같아진다.
+    // 그래야 파면 바로 뒤가 압축(밀)이 되어 단일 펄스와 앞뒤 순서가 같아진다.
     if(x <= uFront){
       float ph  = uK * x - uPhase;
       float env = clamp((uFront - x) / uEnvLen, 0.0, 1.0);
@@ -388,7 +392,9 @@ void wave(in float x, out float s, out float g){
       g = -uA * uK * cos(ph) * env;
     }
   } else {
-    // 단일 펄스: 가우시안 압축 덩어리가 이동한다
+    // 단일 펄스: 가우시안 압축 덩어리가 이동한다.
+    // 실제 짧은 소리(박수·북)는 그 짧은 순간에도 여러 번 떨리지만,
+    // 여기서는 압축 1개 + 희박 1개 한 쌍으로 단순화한다. 왕복 진동은 0회다.
     float q = x - uFront;
     float e = exp(-(q*q) / (2.0 * uSigma * uSigma));
     s =  uA * e * uActive;
@@ -833,89 +839,85 @@ const S = {
   temp: 20, scale: 0.005, freq: 440, vol: 0.60,
   mode: 0, playing: true, simTime: 0, jitTime: 0, pulseActive: 1,
   density: 1, showTag: 1, restOnly: 0, showFront: 1, jitter: 1,
-  graph: false, aligned: false
+  graph: false, aligned: false,
+  sound: false          // 기본 꺼짐 — 교실에서 여러 대가 동시에 울리면 안 된다
 };
 
 // 스피커 진동판 위치 (waveJS를 그대로 쓴다)
 function sourceDisp(P){ return waveJS(0, P).s; }
 
+/* =========================================================================
+   AUDIO — 연속 파동을 실제 소리로 재생 (Web Audio, 외부 라이브러리 없음)
+
+   [중요] 소리는 시간 배율을 따라가지 않는다.
+   0.005× 슬로우 모션에 맞춰 440 Hz를 낮추면 2.2 Hz가 되어 들리지 않는다.
+   그래서 화면이 아무리 느려도 소리는 항상 실제 진동수로 낸다. (UI에 명시함)
+
+   음량은 S.vol에 정비례시킨다. 이 슬라이더는 음압에 비례하므로
+   화면 진폭과 들리는 크기가 같은 법칙으로 움직인다.
+   주파수별 청감 보정(A-weighting)은 넣지 않는다 — 같은 음압을 그대로 내보낸다.
+   ========================================================================= */
+const AUDIO = { ctx:null, osc:null, gain:null, ready:false, failed:false,
+                lastGain:null, lastFreq:null };
+const AUDIO_MAX_GAIN = 0.12;   // 안전 상한. vol 100%일 때의 진폭
+const AUDIO_SMOOTH   = 0.02;   // 값 변화 시간상수(초). 지퍼 노이즈·팝음 방지
+
+// 반드시 사용자 제스처(체크박스 change) 안에서 호출해야 한다.
+// 그 밖에서 만들면 브라우저 자동재생 정책 때문에 suspended 상태로 멈춘다.
+function audioInit(){
+  if(AUDIO.ready || AUDIO.failed) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC){ AUDIO.failed = true; return; }        // 미지원 브라우저는 조용히 포기
+  try{
+    AUDIO.ctx  = new AC();
+    AUDIO.gain = AUDIO.ctx.createGain();
+    AUDIO.gain.gain.value = 0;
+    AUDIO.osc  = AUDIO.ctx.createOscillator();
+    AUDIO.osc.type = 'sine';                     // 시뮬레이션이 순수 사인파이므로 소리도 사인파
+    AUDIO.osc.frequency.value = S.freq;
+    AUDIO.osc.connect(AUDIO.gain).connect(AUDIO.ctx.destination);
+    AUDIO.osc.start();                           // start는 한 번뿐. 이후엔 gain으로만 켜고 끈다
+    AUDIO.ready = true;
+  }catch(e){ AUDIO.failed = true; }
+}
+
+function audioWanted(){
+  // 연속 파동 모드에서 재생 중일 때만 소리를 낸다 (단일 펄스는 무음)
+  return S.sound && S.playing && S.mode === 0 && !document.hidden;
+}
+
+// 매 프레임 호출된다. 값이 바뀔 때만 예약해야 오토메이션 이벤트가 쌓이지 않는다.
+function audioUpdate(){
+  if(!AUDIO.ready) return;
+  const t = AUDIO.ctx.currentTime;
+  const wantGain = audioWanted() ? S.vol * AUDIO_MAX_GAIN : 0;
+  if(wantGain !== AUDIO.lastGain){
+    AUDIO.gain.gain.setTargetAtTime(wantGain, t, AUDIO_SMOOTH);
+    AUDIO.lastGain = wantGain;
+  }
+  if(S.freq !== AUDIO.lastFreq){
+    AUDIO.osc.frequency.setTargetAtTime(S.freq, t, AUDIO_SMOOTH);
+    AUDIO.lastFreq = S.freq;
+  }
+}
+
+function setSound(on){
+  S.sound = !!on;
+  $('oSound').checked = S.sound;
+  $('eHear').checked  = S.sound;
+  if(S.sound){
+    audioInit();
+    if(AUDIO.ctx && AUDIO.ctx.state === 'suspended') AUDIO.ctx.resume();
+  }
+  audioUpdate();
+}
+
+// 탭이 가려지면 rAF가 멈춰 audioUpdate가 더는 안 돌므로, 이 시점에 한 번 불러 꺼준다.
+// (audioWanted()가 document.hidden을 이미 보고 있어서 이 호출만으로 충분하다)
+document.addEventListener('visibilitychange', audioUpdate);
+
 // ---------- UI ----------
 const $ = id => document.getElementById(id);
-
-/* =========================================================================
-   AudioEngine — Web Audio API로 시뮬레이션 소리 재생
-   연속 파동: 사인파 오실레이터 (freq·vol 실시간 반영)
-   단일 펄스: 짧은 사인파 버스트 (freq 반영)
-   ========================================================================= */
-const AudioEng = {
-  ctx:null, osc:null, gain:null, enabled:false,
-
-  init(){
-    if(this.ctx) return;
-    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    this.gain = this.ctx.createGain();
-    this.gain.gain.value = 0;
-    this.gain.connect(this.ctx.destination);
-  },
-
-  toggle(){
-    this.init();
-    this.enabled = !this.enabled;
-    this.syncBtn();
-    this.sync();
-  },
-
-  syncBtn(){
-    const on = this.enabled;
-    ['aToggleE','aToggleH'].forEach(id => {
-      $(id).classList.toggle('on', on);
-      $(id).textContent = on ? '🔊 소리 끄기' : '🔇 소리 듣기';
-    });
-  },
-
-  // 매 프레임 호출 — 시뮬 상태에 맞춰 오디오 동기화
-  sync(){
-    if(!this.ctx) return;
-    const want = this.enabled && S.playing && S.mode === 0;
-    const t = this.ctx.currentTime;
-    if(want){
-      if(!this.osc){
-        if(this.ctx.state === 'suspended') this.ctx.resume();
-        this.osc = this.ctx.createOscillator();
-        this.osc.type = 'sine';
-        this.osc.frequency.value = S.freq;
-        this.osc.connect(this.gain);
-        this.osc.start();
-      }
-      this.osc.frequency.setTargetAtTime(S.freq, t, 0.02);
-      this.gain.gain.setTargetAtTime(S.vol * 0.3, t, 0.05);
-    } else if(this.osc){
-      this.gain.gain.setTargetAtTime(0, t, 0.02);
-      const o = this.osc; this.osc = null;
-      o.stop(t + 0.12);
-      o.onended = () => { try{ o.disconnect(); }catch(e){} };
-    }
-  },
-
-  firePulse(){
-    if(!this.ctx || !this.enabled) return;
-    if(this.ctx.state === 'suspended') this.ctx.resume();
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const env = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = S.freq;
-    osc.connect(env);
-    env.connect(this.ctx.destination);
-    env.gain.setValueAtTime(Math.max(S.vol * 0.5, 0.05), t);
-    env.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-    osc.start(t);
-    osc.stop(t + 0.22);
-  }
-};
-
-$('aToggleE').onclick = () => AudioEng.toggle();
-$('aToggleH').onclick = () => AudioEng.toggle();
 
 function updateReadouts(){
   const v = speed(), L = S.dist;
@@ -970,7 +972,8 @@ function setMode(m){
   S.mode = m;
   $('mCont').classList.toggle('on', m === 0);
   $('mPulse').classList.toggle('on', m === 1);
-  $('pulseRow').style.display = m === 1 ? 'flex' : 'none';
+  $('pulseRow').style.display  = m === 1 ? 'flex'  : 'none';
+  $('pulseHint').style.display = m === 1 ? 'block' : 'none';
   reset();
   if(m === 1) S.playing = false;
   syncPlay(); updateReadouts();
@@ -986,12 +989,12 @@ function syncPlay(){ $('bPlay').textContent = S.playing ? '⏸ 일시정지' : '
 function waveLive(){ return S.mode < 0.5 || S.pulseActive > 0.5; }
 
 $('bPlay').onclick  = () => {
-  // 펄스 모드에서 아직 안 쳤는데 재생을 누르면 박수를 친 것으로 본다
+  // 펄스 모드에서 아직 안 밀었는데 재생을 누르면 펄스를 발사한 것으로 본다
   if(!S.playing && S.mode === 1 && S.pulseActive < 0.5){ S.simTime = 0; S.pulseActive = 1; }
   S.playing = !S.playing; syncPlay();
 };
 $('bReset').onclick = () => { reset(); };
-$('bFire').onclick  = () => { S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); AudioEng.firePulse(); };
+$('bFire').onclick  = () => { S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); };
 
 function frontView(){ cam.theta = 0; cam.phi = 0; cam.dist = 4.0; S.aligned = true; }
 
@@ -1001,6 +1004,7 @@ $('oGraph').onchange = e => {
   if(S.graph) frontView();          // 그래프를 켜면 정면 + 직교 투영으로 정렬
   else S.aligned = false;
 };
+$('oSound').onchange = e => setSound(e.target.checked);
 $('oDens').onchange  = e => S.density   = e.target.checked ? 1 : 0;
 $('oTrack').onchange = e => S.showTag   = e.target.checked ? 1 : 0;
 $('oRest').onchange  = e => { S.restOnly = e.target.checked ? 1 : 0; $('eRest').checked = e.target.checked; };
@@ -1046,6 +1050,8 @@ function syncHighControls(){
   $('oRest').checked  = !!S.restOnly;
   $('oFront').checked = !!S.showFront;
   $('oJit').checked   = !!S.jitter;
+  $('oSound').checked = S.sound;
+  $('eHear').checked  = S.sound;
 }
 
 function setLevel(l){
@@ -1077,8 +1083,9 @@ $('lpHigh').onclick = () => { setLevel('high'); $('levelPick').classList.add('do
 // 초등 모드 버튼
 $('eSound').onclick = () => { setMode(0); S.playing = true;  syncPlay(); };
 $('eStop').onclick  = () => { S.playing = false; syncPlay(); };
-$('eClap').onclick  = () => { setMode(1); S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); AudioEng.firePulse(); };
+$('eClap').onclick  = () => { setMode(1); S.simTime = 0; S.pulseActive = 1; S.playing = true; syncPlay(); };
 $('eReset').onclick = () => { reset(); };
+$('eHear').onchange = e => setSound(e.target.checked);
 $('eRest').onchange = e => { S.restOnly = e.target.checked ? 1 : 0; $('oRest').checked = e.target.checked; };
 $('eFrontView').onclick = () => { cam.theta = 0; cam.phi = 0; cam.dist = 4.0; S.aligned = false; };
 $('eIsoView').onclick   = () => { cam.theta = 0.62; cam.phi = 0.26; cam.dist = 4.3; S.aligned = false; };
@@ -1348,12 +1355,11 @@ function frame(now){
   gl.drawArrays(gl.POINTS, 0, N_ALL);
 
   if(S.graph) drawGraph(P, L);
-
-  AudioEng.sync();
+  audioUpdate();
 
   // HUD
   $('hFront').textContent = !waveLive()
-    ? (S.level === 'elem' ? '박수 치기를 누르세요' : '발사 대기')
+    ? (S.level === 'elem' ? '한 번 밀기를 누르세요' : '발사 대기')
     : P.front >= L
       ? L.toFixed(1) + ' m · 도달 완료'
       : P.front.toFixed(L >= 100 ? 1 : 3) + ' / ' + L.toFixed(1) + ' m';
